@@ -11,3 +11,11 @@
 # Python egg metadata, regenerated from source files by setuptools.
 /*.egg-info
 /*.egg
+
+# Dataset of .csv
+dataset/Datad4rl
+dataset/T1DatasetAnalysis
+/*.csv
+
+# Remove after DT and ODT implementation
+decision-transformer
