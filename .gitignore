@@ -12,12 +12,18 @@
 /*.egg-info
 /*.egg
 
+# Wanted scripts
+!dataset/T1DatasetAnalysis/data_analysis.py
+!dataset/T1DatasetAnalysis/trajectory_creator.py
+
 # Dataset of .csv
-dataset/Datad4rl
-dataset/T1DatasetAnalysis
+dataset/Datad4rl/*
+dataset/T1DatasetAnalysis/*
 /*.csv
+
+
 
 # Remove after DT and ODT implementation
 decision-transformer
-
 rllab
+

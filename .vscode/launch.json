@@ -1,0 +1,17 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Run Script",
+            "type": "python",
+            "request": "launch",
+            "program": "dataset/T1DatasetAnalysis/trajectory_creator.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--folder", "PPO",
+                "--patient_name", "adolescent#001",
+                "--trajectory_index", "0"
+            ]
+        }
+    ]
+}
