@@ -21,7 +21,8 @@ dataset/Datad4rl/*
 dataset/T1DatasetAnalysis/*
 /*.csv
 
-
+#ignore wandb file
+wandb
 
 # Remove after DT and ODT implementation
 decision-transformer
