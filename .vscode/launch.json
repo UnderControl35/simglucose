@@ -12,6 +12,17 @@
                 "--patient_name", "adolescent#001",
                 "--trajectory_index", "0"
             ]
-        }
+        },
+        {
+            "name": "Python as Root",
+            "type": "python",
+            "request": "launch",
+            "program": "examples/collect_env_data.py",
+            "python": "//home/guleserhocam/miniconda3/envs/simbg/bin/python3",
+            "args": [],
+            "console": "integratedTerminal",
+            "sudo": true
+          }
     ]
 }
+

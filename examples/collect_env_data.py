@@ -10,7 +10,7 @@ from pygame.locals import *
 import pickle as pkl
 import argparse
 from simglucose.controller.base import Action
-from simglucose.controller.pid_ctrller_v2 import PIDController
+from simglucose.controller.pid_ctrller import PIDController
 import pandas as pd
 from datetime import datetime
 import numpy as np
@@ -181,10 +181,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--collect', type=bool, default= 1)
     parser.add_argument('--collect_type', type=str, default= 'manual', help="Select option manual/pid")
-    parser.add_argument('--save_path', type=str, default= '/home/berk/VS_Project/simglucose/examples/trajectories/')
+    parser.add_argument('--save_path', type=str, default= '/home/guleserhocam/VS_Projects/simglucose/dataset/Collected/')
     parser.add_argument('--pid_tune', nargs="+", default= [1e-1, 0, 0])
-    parser.add_argument('--episodes', type=int, default= 10)
-    parser.add_argument('--timesteps', type=int, default= 480*5) #5 Days
+    parser.add_argument('--episodes', type=int, default= 1)
+    parser.add_argument('--timesteps', type=int, default= 200) #5 Days
 
     args = parser.parse_args()
     main()

@@ -18,6 +18,7 @@
 
 # Dataset of .csv
 dataset/Datad4rl/*
+dataset/Collected/*
 dataset/T1DatasetAnalysis/*
 /*.csv
 
