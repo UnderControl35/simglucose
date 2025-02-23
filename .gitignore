@@ -1,7 +1,7 @@
 # Compiled python modules.
 *.pyc
 
-# results foler
+# Results folder
 /results/
 
 # Setuptools distribution folder.
@@ -12,17 +12,22 @@
 /*.egg-info
 /*.egg
 
-# Wanted scripts
+# Allow dataset/T1DatasetAnalysis but not all its content
+!dataset/T1DatasetAnalysis/
+dataset/T1DatasetAnalysis/*
+
+# Allow specific scripts
 !dataset/T1DatasetAnalysis/data_analysis.py
 !dataset/T1DatasetAnalysis/trajectory_creator.py
+!decision-transformer/gym/experiment.py
 
-# Dataset of .csv
+
+# Ignore dataset files
 dataset/Datad4rl/*
 dataset/Collected/*
-dataset/T1DatasetAnalysis/*
 /*.csv
 
-#ignore wandb file
+# Ignore wandb file
 wandb
 
 # Remove after DT and ODT implementation

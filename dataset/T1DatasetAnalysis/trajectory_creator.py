@@ -108,12 +108,8 @@ def plot_single_trajectory(folder, patient_name, base_output_path, trajectory_in
     """
     Reads a patient's trajectory from a pickle file and plots a single trajectory
     with both Blood Glucose and Reward values on the same figure.
-
-    Args:
-        folder (str): Folder name where the pickle file is stored (e.g., 'PPO').
-        patient_name (str): Patient name (e.g., 'adolescent#001').
-        base_output_path (str): Base folder containing the pickle file (e.g., 'output').
-        trajectory_index (int): Index of the trajectory to plot (default is 0).
+    
+    Also displays the mean and standard deviation of Blood Glucose levels.
     """
     # Locate the pickle file in the patient's folder
     pickle_path = os.path.join(FILE_DIR, folder, base_output_path, patient_name, f"{patient_name}_combined_seed.pkl")
@@ -137,6 +133,13 @@ def plot_single_trajectory(folder, patient_name, base_output_path, trajectory_in
     glucose = [obs[0] for obs in traj['observations']]
     rewards = traj['rewards']
 
+    # Compute statistics
+    mean_glucose = np.mean(glucose)
+    std_glucose = np.std(glucose)
+
+    mean_rewards = np.mean(rewards)
+    std_rewards = np.std(rewards)
+
     # Create a DataFrame for the trajectory
     df = pd.DataFrame({
         "Step": steps,
@@ -149,7 +152,7 @@ def plot_single_trajectory(folder, patient_name, base_output_path, trajectory_in
     fig, ax1 = plt.subplots(figsize=(16, 10))
 
     # Plot Blood Glucose on the primary y-axis
-    sns.lineplot(data=df, x="Step", y="Blood Glucose (BG)", ax=ax1, color="blue", label="Blood Glucose")
+    sns.lineplot(data=df, x="Step", y="Blood Glucose (BG)", ax=ax1, color="blue", label=f"Blood Glucose (Mean: {mean_glucose:.2f}, Std: {std_glucose:.2f})")
     ax1.axhline(70, color="red", linestyle="--", label="Low Threshold (70 mg/dL)")
     ax1.axhline(180, color="orange", linestyle="--", label="High Threshold (180 mg/dL)")
 
@@ -161,7 +164,8 @@ def plot_single_trajectory(folder, patient_name, base_output_path, trajectory_in
 
     # Create a secondary y-axis for rewards
     ax2 = ax1.twinx()
-    sns.scatterplot(data=df, x="Step", y="Reward", ax=ax2, color="green", linestyle="--", label="Reward")
+    sns.scatterplot(data=df, x="Step", y="Reward", ax=ax2, color="green", linestyle="--", \
+                    label="Reward (Mean: {:.2f}, Std: {:.2f}, Total: {:.2f})".format(mean_rewards, std_rewards, sum(rewards)))
 
     # Secondary y-axis settings
     ax2.set_ylabel("Reward", fontsize=14, color="green")
@@ -174,6 +178,7 @@ def plot_single_trajectory(folder, patient_name, base_output_path, trajectory_in
 
     # Show the plot
     plt.show()
+
 
 
 
@@ -196,7 +201,7 @@ if __name__ == "__main__":
     #                                  numbers=[f'#{i:03d}' for i in range(1, 11)], 
     #                                  seeds=[f'seed{i}' for i in range(20)])
     
-    # # Load data
+    # Load data
     # trajectories = load_patient_data(folder_path='BB', 
     #                                  patients=['adolescent', 'child', 'adult'], 
     #                                  numbers=[f'#{i:03d}' for i in range(1, 11)], 

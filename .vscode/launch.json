@@ -8,7 +8,7 @@
             "program": "dataset/T1DatasetAnalysis/trajectory_creator.py",
             "console": "integratedTerminal",
             "args": [
-                "--folder", "PPO",
+                "--folder", "BB",
                 "--patient_name", "adolescent#001",
                 "--trajectory_index", "0"
             ]
