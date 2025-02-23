@@ -19,8 +19,6 @@ dataset/T1DatasetAnalysis/*
 # Allow specific scripts
 !dataset/T1DatasetAnalysis/data_analysis.py
 !dataset/T1DatasetAnalysis/trajectory_creator.py
-!decision-transformer/gym/experiment.py
-
 
 # Ignore dataset files
 dataset/Datad4rl/*
@@ -31,6 +29,10 @@ dataset/Collected/*
 wandb
 
 # Remove after DT and ODT implementation
-decision-transformer
+decision-transformer/*
+!decision-transformer/gym/
+decision-transformer/gym/*
+!decision-transformer/gym/experiment.py
+
 rllab
 online-dt
