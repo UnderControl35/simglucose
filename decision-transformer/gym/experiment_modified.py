@@ -2,40 +2,75 @@ import gym
 import numpy as np
 import torch
 import wandb
-
 import argparse
 import pickle
 import random
-import sys, os
+import sys
+import os
 
 from decision_transformer.evaluation.evaluate_episodes import evaluate_episode, evaluate_episode_rtg
 from decision_transformer.models.decision_transformer import DecisionTransformer
 from decision_transformer.models.mlp_bc import MLPBCModel
 from decision_transformer.training.act_trainer import ActTrainer
 from decision_transformer.training.seq_trainer import SequenceTrainer
-
 import simglucose
 from gym.envs.registration import register
 
+# Register the simglucose environment
 register(
     id='simglucose-adolescent1-v0',
     entry_point='simglucose.envs:T1DSimEnv',
     kwargs={'patient_name': 'adolescent#001'}
 )
 
-
 def discount_cumsum(x, gamma):
     discount_cumsum = np.zeros_like(x)
     discount_cumsum[-1] = x[-1]
-    for t in reversed(range(x.shape[0]-1)):
-        discount_cumsum[t] = x[t] + gamma * discount_cumsum[t+1]
+    for t in reversed(range(x.shape[0] - 1)):
+        discount_cumsum[t] = x[t] + gamma * discount_cumsum[t + 1]
     return discount_cumsum
 
+def compute_glucose_metrics(bg_trajectory):
+    """Compute glucose control metrics: euglycemia %, hypo/hyperglycemia %, and risk index."""
+    euglycemic_range = (70, 180)  # Target range from PLOS ONE paper
+    hypo_threshold = 70
+    hyper_threshold = 350  # Conservative upper limit
 
-def experiment(
-        exp_prefix,
-        variant,
-):
+    bg_trajectory = np.array(bg_trajectory)
+    euglycemic = np.sum((bg_trajectory >= euglycemic_range[0]) & (bg_trajectory <= euglycemic_range[1]))
+    hypoglycemic = np.sum(bg_trajectory < hypo_threshold)
+    hyperglycemic = np.sum(bg_trajectory > hyper_threshold)
+    total_steps = len(bg_trajectory)
+
+    euglycemic_pct = (euglycemic / total_steps) * 100
+    hypoglycemic_pct = (hypoglycemic / total_steps) * 100
+    hyperglycemic_pct = (hyperglycemic / total_steps) * 100
+
+    def clarke_bgri(bg):
+        f_bg = 1.509 * (np.log(bg) ** 1.084 - 5.381)
+        r_bg = 10 * f_bg ** 2
+        lbg = r_bg if f_bg < 0 else 0
+        hbg = r_bg if f_bg > 0 else 0
+        return lbg, hbg
+
+    lbg_values, hbg_values = [], []
+    for bg in bg_trajectory:
+        lbg, hbg = clarke_bgri(bg)
+        lbg_values.append(lbg)
+        hbg_values.append(hbg)
+
+    lbgi = np.mean(lbg_values)
+    hbgi = np.mean(hbg_values)
+    bgri = lbgi + hbgi
+
+    return {
+        'euglycemic_pct': euglycemic_pct,
+        'hypoglycemic_pct': hypoglycemic_pct,
+        'hyperglycemic_pct': hyperglycemic_pct,
+        'bgri': bgri
+    }
+
+def experiment(exp_prefix, variant):
     device = variant.get('device', 'cuda')
     log_to_wandb = variant.get('log_to_wandb', False)
 
@@ -47,13 +82,13 @@ def experiment(
     if env_name == 'simglucose':
         env = gym.make('simglucose-adolescent1-v0')
         max_ep_len = 480
-        env_targets = [180, 70]
+        env_targets = [180, 70]  # Target BG levels
         scale = 1000.
     elif env_name == 'hopper':
         env = gym.make('Hopper-v3')
         max_ep_len = 1000
-        env_targets = [3600, 1800]  # evaluation conditioning targets
-        scale = 1000.  # normalization for rewards/returns
+        env_targets = [3600, 1800]
+        scale = 1000.
     elif env_name == 'halfcheetah':
         env = gym.make('HalfCheetah-v3')
         max_ep_len = 1000
@@ -74,23 +109,20 @@ def experiment(
         raise NotImplementedError
 
     if model_type == 'bc':
-        env_targets = env_targets[:1]  # since BC ignores target, no need for different evaluations
+        env_targets = env_targets[:1]
 
     state_dim = env.observation_space.shape[0]
     act_dim = env.action_space.shape[0]
 
-    # load dataset
-    #FIXME: Create generic path to read file from argument!
-    #dataset_path = f'data/{env_name}-{dataset}-v2.pkl'
+    # Load dataset
     dataset_path = f'/home/guleserhocam/VS_Projects/simglucose/dataset/T1DatasetAnalysis/BB/output/adolescent#001/adolescent#001_combined_seed.pkl'
     with open(dataset_path, 'rb') as f:
         trajectories = pickle.load(f)
 
-    # save all path information into separate lists
     mode = variant.get('mode', 'normal')
     states, traj_lens, returns = [], [], []
     for path in trajectories:
-        if mode == 'delayed':  # delayed: all rewards moved to end of trajectory
+        if mode == 'delayed':
             path['rewards'][-1] = path['rewards'].sum()
             path['rewards'][:-1] = 0.
         states.append(path['observations'])
@@ -98,7 +130,6 @@ def experiment(
         returns.append(path['rewards'].sum())
     traj_lens, returns = np.array(traj_lens), np.array(returns)
 
-    # used for input normalization
     states = np.concatenate(states, axis=0)
     state_mean, state_std = np.mean(states, axis=0), np.std(states, axis=0) + 1e-6
 
@@ -116,9 +147,8 @@ def experiment(
     num_eval_episodes = variant['num_eval_episodes']
     pct_traj = variant.get('pct_traj', 1.)
 
-    # only train on top pct_traj trajectories (for %BC experiment)
-    num_timesteps = max(int(pct_traj*num_timesteps), 1)
-    sorted_inds = np.argsort(returns)  # lowest to highest
+    num_timesteps = max(int(pct_traj * num_timesteps), 1)
+    sorted_inds = np.argsort(returns)
     num_trajectories = 1
     timesteps = traj_lens[sorted_inds[-1]]
     ind = len(trajectories) - 2
@@ -128,7 +158,6 @@ def experiment(
         ind -= 1
     sorted_inds = sorted_inds[-num_trajectories:]
 
-    # used to reweight sampling so we sample according to timesteps instead of trajectories
     p_sample = traj_lens[sorted_inds] / sum(traj_lens[sorted_inds])
 
     def get_batch(batch_size=256, max_len=K):
@@ -136,7 +165,7 @@ def experiment(
             np.arange(num_trajectories),
             size=batch_size,
             replace=True,
-            p=p_sample,  # reweights so we sample according to timesteps
+            p=p_sample,
         )
 
         s, a, r, d, rtg, timesteps, mask = [], [], [], [], [], [], []
@@ -144,7 +173,6 @@ def experiment(
             traj = trajectories[int(sorted_inds[batch_inds[i]])]
             si = random.randint(0, traj['rewards'].shape[0] - 1)
 
-            # get sequences from dataset
             s.append(traj['observations'][si:si + max_len].reshape(1, -1, state_dim))
             a.append(traj['actions'][si:si + max_len].reshape(1, -1, act_dim))
             r.append(traj['rewards'][si:si + max_len].reshape(1, -1, 1))
@@ -153,12 +181,11 @@ def experiment(
             else:
                 d.append(traj['dones'][si:si + max_len].reshape(1, -1))
             timesteps.append(np.arange(si, si + s[-1].shape[1]).reshape(1, -1))
-            timesteps[-1][timesteps[-1] >= max_ep_len] = max_ep_len-1  # padding cutoff
+            timesteps[-1][timesteps[-1] >= max_ep_len] = max_ep_len - 1
             rtg.append(discount_cumsum(traj['rewards'][si:], gamma=1.)[:s[-1].shape[1] + 1].reshape(1, -1, 1))
             if rtg[-1].shape[1] <= s[-1].shape[1]:
                 rtg[-1] = np.concatenate([rtg[-1], np.zeros((1, 1, 1))], axis=1)
 
-            # padding and state + reward normalization
             tlen = s[-1].shape[1]
             s[-1] = np.concatenate([np.zeros((1, max_len - tlen, state_dim)), s[-1]], axis=1)
             s[-1] = (s[-1] - state_mean) / state_std
@@ -181,22 +208,23 @@ def experiment(
 
     def eval_episodes(target_rew):
         def fn(model):
-            returns, lengths = [], []
+            returns, lengths, bg_trajectories = [], [], []
             for _ in range(num_eval_episodes):
                 with torch.no_grad():
                     if model_type == 'dt':
-                        ret, length = evaluate_episode_rtg(
+                        ret, length, bg_traj = evaluate_episode_rtg(
                             env,
                             state_dim,
                             act_dim,
                             model,
                             max_ep_len=max_ep_len,
                             scale=scale,
-                            target_return=target_rew/scale,
+                            target_return=target_rew / scale,
                             mode=mode,
                             state_mean=state_mean,
                             state_std=state_std,
                             device=device,
+                            return_bg_trajectory=True  # Assumes modified evaluate_episode_rtg
                         )
                     else:
                         ret, length = evaluate_episode(
@@ -205,20 +233,32 @@ def experiment(
                             act_dim,
                             model,
                             max_ep_len=max_ep_len,
-                            target_return=target_rew/scale,
+                            target_return=target_rew / scale,
                             mode=mode,
                             state_mean=state_mean,
                             state_std=state_std,
                             device=device,
                         )
-                returns.append(ret)
-                lengths.append(length)
-            return {
+                        bg_traj = None
+                    returns.append(ret)
+                    lengths.append(length)
+                    if bg_traj is not None:
+                        bg_trajectories.append(bg_traj)
+            eval_results = {
                 f'target_{target_rew}_return_mean': np.mean(returns),
                 f'target_{target_rew}_return_std': np.std(returns),
                 f'target_{target_rew}_length_mean': np.mean(lengths),
                 f'target_{target_rew}_length_std': np.std(lengths),
             }
+            if bg_trajectories:
+                metrics = [compute_glucose_metrics(traj) for traj in bg_trajectories]
+                eval_results.update({
+                    f'target_{target_rew}_euglycemic_pct': np.mean([m['euglycemic_pct'] for m in metrics]),
+                    f'target_{target_rew}_hypoglycemic_pct': np.mean([m['hypoglycemic_pct'] for m in metrics]),
+                    f'target_{target_rew}_hyperglycemic_pct': np.mean([m['hyperglycemic_pct'] for m in metrics]),
+                    f'target_{target_rew}_bgri': np.mean([m['bgri'] for m in metrics]),
+                })
+            return eval_results
         return fn
 
     if model_type == 'dt':
@@ -230,7 +270,7 @@ def experiment(
             hidden_size=variant['embed_dim'],
             n_layer=variant['n_layer'],
             n_head=variant['n_head'],
-            n_inner=4*variant['embed_dim'],
+            n_inner=4 * variant['embed_dim'],
             activation_function=variant['activation_function'],
             n_positions=1024,
             resid_pdrop=variant['dropout'],
@@ -257,7 +297,7 @@ def experiment(
     )
     scheduler = torch.optim.lr_scheduler.LambdaLR(
         optimizer,
-        lambda steps: min((steps+1)/warmup_steps, 1)
+        lambda steps: min((steps + 1) / warmup_steps, 1)
     )
 
     if model_type == 'dt':
@@ -267,7 +307,7 @@ def experiment(
             batch_size=batch_size,
             get_batch=get_batch,
             scheduler=scheduler,
-            loss_fn=lambda s_hat, a_hat, r_hat, s, a, r: torch.mean((a_hat - a)**2),
+            loss_fn=lambda s_hat, a_hat, r_hat, s, a, r: torch.mean((a_hat - a) ** 2),
             eval_fns=[eval_episodes(tar) for tar in env_targets],
         )
     elif model_type == 'bc':
@@ -277,106 +317,54 @@ def experiment(
             batch_size=batch_size,
             get_batch=get_batch,
             scheduler=scheduler,
-            loss_fn=lambda s_hat, a_hat, r_hat, s, a, r: torch.mean((a_hat - a)**2),
+            loss_fn=lambda s_hat, a_hat, r_hat, s, a, r: torch.mean((a_hat - a) ** 2),
             eval_fns=[eval_episodes(tar) for tar in env_targets],
         )
 
-    if log_to_wandb:
-        wandb.init(
-            name=exp_prefix,
-            group=group_name,
-            project='decision-transformer',
-            config=variant
-        )
-        # wandb.watch(model)  # wandb has some bug
-
+    # Training loop with terminal logging
+    print(f"Starting training for {variant['max_iters']} iterations with {variant['num_steps_per_iter']} steps each")
     for iter in range(variant['max_iters']):
-        outputs = trainer.train_iteration(num_steps=variant['num_steps_per_iter'], iter_num=iter+1, print_logs=True)
+        print(f"\nIteration {iter + 1}/{variant['max_iters']}")
+        outputs = trainer.train_iteration(
+            num_steps=variant['num_steps_per_iter'],
+            iter_num=iter + 1,
+            print_logs=True
+        )
+
+        # Terminal logging
+        print(f"  Training Loss: {outputs['training/loss']:.4f}")
+        total_steps = (iter + 1) * variant['num_steps_per_iter']
+        print(f"  Total Steps Completed: {total_steps}")
+
+        # Log evaluation results
+        print("  Evaluation Results:")
+        for target_rew in env_targets:
+            eval_key = f'evaluation/target_{target_rew}_return_mean'
+            if eval_key in outputs:
+                print(f"    Target {target_rew} Return Mean: {outputs[eval_key]:.2f}")
+                print(f"    Target {target_rew} Return Std: {outputs[f'evaluation/target_{target_rew}_return_std']:.2f}")
+                print(f"    Target {target_rew} Length Mean: {outputs[f'evaluation/target_{target_rew}_length_mean']:.2f}")
+                if f'evaluation/target_{target_rew}_euglycemic_pct' in outputs:
+                    print(f"    Target {target_rew} Euglycemic %: {outputs[f'evaluation/target_{target_rew}_euglycemic_pct']:.2f}")
+                    print(f"    Target {target_rew} Hypoglycemic %: {outputs[f'evaluation/target_{target_rew}_hypoglycemic_pct']:.2f}")
+                    print(f"    Target {target_rew} Hyperglycemic %: {outputs[f'evaluation/target_{target_rew}_hyperglycemic_pct']:.2f}")
+                    print(f"    Target {target_rew} BGRI: {outputs[f'evaluation/target_{target_rew}_bgri']:.2f}")
+
         if log_to_wandb:
+            wandb.init(name=exp_prefix, group=group_name, project='decision-transformer', config=variant)
             wandb.log(outputs)
 
-    #Save the trained model
+    # Save the trained model
     save_path = variant.get('save_path', './models/dt_simglucose.pth')
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     torch.save(model.state_dict(), save_path)
     print(f"\nModel saved to {save_path}")
-        
-
 
 if __name__ == '__main__':
-    # Reasoning for '--env': Set to 'simglucose' to match the environment used in the PLOS ONE paper, 
-    # which simulates type 1 diabetes patients with the UVA/PADOVA simulator, providing 3-minute 
-    # blood glucose (BG) samples and insulin dosing actions.
-
-    # Reasoning for '--dataset': Default 'medium' assumes a dataset of moderate quality, such as trajectories 
-    # from a suboptimal policy (e.g., basal-bolus or PID from the paper). Use 'expert' if generating data 
-    # from PPO-RNN (paper’s best performer) or 'medium-replay' for mixed-quality data with early terminations.
-
-    # Reasoning for '--mode': Set to 'delayed' to align with the paper’s finding that reducing observation 
-    # frequency to 30-60 minutes improved learning due to insulin delays (POMDP nature). This subsamples 
-    # the 3-minute steps (e.g., every 10 steps = 30 minutes). Use 'normal' for full 3-minute granularity if needed.
-
-    # Reasoning for '--K': \( K = 20 \) at 3-minute steps equals 1 hour, matching the paper’s effective 30-60 
-    # minute control interval. It captures insulin peak effects (1-2 hours) and is lightweight (60 tokens/sequence). 
-    # DT paper used 20-50; increase to 50 if longer dependencies (e.g., meal patterns) are critical.
-
-    # Reasoning for '--pct_traj': Set to 1.0 to use 100% of trajectories, as the dataset (e.g., 30 patients × 20 
-    # episodes = 600) is small compared to Atari/MuJoCo datasets. The paper trained on all 30 patients’ data. 
-    # Reduce to 0.5 for faster training or to test data efficiency if compute is limited.
-    #TODO: How could we train all patient in one code?
-
-    # Reasoning for '--batch_size': 64 is a standard DT value (64-128), balancing memory and gradient stability. 
-    # With \( K = 20 \), 3 embeddings/step = 60 tokens/sequence, 64 × 60 = 3840 tokens/batch, fitting on a single 
-    # GPU (e.g., RTX 2080 from the paper).
-
-    # Reasoning for '--model_type': 'dt' is the target for sequence-based RL with Decision Transformer. 
-    # 'bc' (behavior cloning) could baseline expert data (e.g., PPO-RNN), but DT is preferred for offline RL flexibility.
-
-    # Reasoning for '--embed_dim': 128 matches DT paper’s setting for smaller tasks (e.g., MuJoCo), scalable 
-    # to 512 for complex ones. Simglucose’s simple state (CGM scalar) and action (insulin dose) spaces make 
-    # 128 sufficient and compute-efficient.
-
-    # Reasoning for '--n_layer': 3 layers is the DT default, balancing depth and complexity. The paper’s PPO-RNN 
-    # used 10 LSTM cells, but DT’s attention replaces recurrence, so 3 layers suffice for \( K = 20 \) sequences.
-
-    # Reasoning for '--n_head': Increased to 4 from default 1 to enhance multi-perspective attention for sequence 
-    # modeling. DT paper used 1-8 heads; 4 is a good compromise for simglucose’s moderate complexity.
-
-    # Reasoning for '--activation_function': 'relu' is the DT default, simple and effective for Transformers. 
-    # Alternatives like GELU are viable but unnecessary unless convergence issues arise.
-
-    # Reasoning for '--dropout': 0.1 is the DT standard, preventing overfitting on small datasets (e.g., 600 episodes). 
-    # Increase to 0.2 if overfitting to patient-specific patterns (e.g., children vs. adults) is observed.
-
-    # Reasoning for '--learning_rate': 1e-4 is the DT paper’s default, a safe choice for Transformers. Simglucose’s 
-    # negative rewards (total ~ -3000) and small dataset suggest starting here. Reduce to 1e-5 if training is unstable.
-
-    # Reasoning for '--weight_decay': 1e-4 is the DT default, providing slight L2 regularization. Increase to 1e-3 
-    # if the model overfits to specific patient trajectories (e.g., group differences noted in the paper).
-
-    # Reasoning for '--warmup_steps': 1000 steps (10-15% of total) stabilizes early training. For 600 episodes, 
-    # 480 steps each, \( K = 20 \), ~14,400 sequences; batch_size 64 = 225 steps/epoch, 10 epochs = 2250 steps. 
-    # 1000 steps (~4 epochs) suits noisy BG data and negative rewards.
-
-    # Reasoning for '--num_eval_episodes': 20 matches the paper’s 20 × 10-day evaluations per patient group, 
-    # sufficient to assess BG stability (euglycemia %, risk index) across 30 patients. Reduced from 100 to save compute.
-
-    # Reasoning for '--max_iters': 10 iterations mimic the paper’s 1M-step training (7-10 days) when scaled to dataset 
-    # size. With 10k steps/iter, total 100k steps is reasonable. Increase to 20 if underfitting occurs.
-
-    # Reasoning for '--num_steps_per_iter': 10,000 is the DT default, ensuring 100k total steps (10 × 10k), comparable 
-    # to 1M steps in the paper for a smaller dataset. Covers ~44 epochs (100k ÷ 2250), aiding convergence.
-
-    # Reasoning for '--device': 'cuda' leverages GPU acceleration (e.g., RTX 2080 from the paper), critical for 
-    # Transformer training efficiency.
-
-    # Reasoning for '--log_to_wandb': True enables tracking of loss and BG metrics (euglycemia, risk index) via 
-    # Weights & Biases, useful for debugging and analysis. Set to False if not using this tool.
-
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env', type=str, default='simglucose') #halfcheetah hopper
+    parser.add_argument('--env', type=str, default='simglucose')
     parser.add_argument('--dataset', type=str, default='medium')
-    parser.add_argument('--mode', type=str, default='normal')
+    parser.add_argument('--mode', type=str, default='delayed')
     parser.add_argument('--K', type=int, default=20)
     parser.add_argument('--pct_traj', type=float, default=1.0)
     parser.add_argument('--batch_size', type=int, default=64)
@@ -388,13 +376,13 @@ if __name__ == '__main__':
     parser.add_argument('--dropout', type=float, default=0.1)
     parser.add_argument('--learning_rate', '-lr', type=float, default=1e-4)
     parser.add_argument('--weight_decay', '-wd', type=float, default=1e-4)
-    parser.add_argument('--warmup_steps', type=int, default=1)
-    parser.add_argument('--num_eval_episodes', type=int, default=1)
+    parser.add_argument('--warmup_steps', type=int, default=1000)
+    parser.add_argument('--num_eval_episodes', type=int, default=20)
     parser.add_argument('--max_iters', type=int, default=10)
-    parser.add_argument('--num_steps_per_iter', type=int, default=10)
+    parser.add_argument('--num_steps_per_iter', type=int, default=10000)
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
-    
-    args = parser.parse_args()
+    parser.add_argument('--save_path', type=str, default='./models/dt_simglucose.pth', help="Path to save the trained model")
 
+    args = parser.parse_args()
     experiment('gym-experiment', variant=vars(args))

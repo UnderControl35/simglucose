@@ -32,7 +32,12 @@ wandb
 decision-transformer/*
 !decision-transformer/gym/
 decision-transformer/gym/*
+!decision-transformer/gym/decision_transformer/
 !decision-transformer/gym/experiment.py
+!decision-transformer/gym/test_dt_model.py
+!decision-transformer/gym/experiment_modified.py
+
+
 
 rllab
 online-dt
