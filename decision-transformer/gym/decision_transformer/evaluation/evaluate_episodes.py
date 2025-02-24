@@ -83,7 +83,7 @@ def evaluate_episode_rtg(
     state_std = torch.from_numpy(state_std).to(device=device)
 
     state = env.reset()
-    #state = np.array(state.CGM)
+    state = np.array(state.CGM)
     if mode == 'noise':
         state = state + np.random.normal(0, 0.1, size=state.shape)
 
@@ -102,6 +102,8 @@ def evaluate_episode_rtg(
     episode_return, episode_length = 0, 0
     for t in range(max_ep_len):
 
+        #TODO: This is only for test
+        env.render(mode='human')
         # add padding
         actions = torch.cat([actions, torch.zeros((1, act_dim), device=device)], dim=0)
         rewards = torch.cat([rewards, torch.zeros(1, device=device)])
@@ -117,7 +119,7 @@ def evaluate_episode_rtg(
         action = action.detach().cpu().numpy()
 
         state, reward, done, _ = env.step(action)
-
+        state = np.array(state.CGM)
         cur_state = torch.from_numpy(state).to(device=device).reshape(1, state_dim)
         states = torch.cat([states, cur_state], dim=0)
         rewards[-1] = reward

@@ -7,6 +7,7 @@ import argparse
 import pickle
 import random
 import sys, os
+from datetime import datetime
 
 from decision_transformer.evaluation.evaluate_episodes import evaluate_episode, evaluate_episode_rtg
 from decision_transformer.models.decision_transformer import DecisionTransformer
@@ -82,7 +83,8 @@ def experiment(
     # load dataset
     #FIXME: Create generic path to read file from argument!
     #dataset_path = f'data/{env_name}-{dataset}-v2.pkl'
-    dataset_path = f'/home/guleserhocam/VS_Projects/simglucose/dataset/T1DatasetAnalysis/BB/output/adolescent#001/adolescent#001_combined_seed.pkl'
+    dataset_path = f'dataset/Collected/DATA_eps_1-2025-02-12 23:09:00.pkl'
+    #dataset_path = f'/home/guleserhocam/VS_Projects/simglucose/dataset/T1DatasetAnalysis/BB/output/adolescent#001/adolescent#001_combined_seed.pkl'
     with open(dataset_path, 'rb') as f:
         trajectories = pickle.load(f)
 
@@ -101,6 +103,14 @@ def experiment(
     # used for input normalization
     states = np.concatenate(states, axis=0)
     state_mean, state_std = np.mean(states, axis=0), np.std(states, axis=0) + 1e-6
+
+    #TODO: create file with run date
+    # Save state_mean and state_std as .npy files
+    output_dir = f"models/{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"  # Create a directory for this experiment
+    os.makedirs(output_dir, exist_ok=True)    # Ensure directory exists
+    np.save(os.path.join(output_dir, "state_mean.npy"), state_mean)
+    np.save(os.path.join(output_dir, "state_std.npy"), state_std)
+    print(f"Saved state_mean and state_std to {output_dir}")
 
     num_timesteps = sum(traj_lens)
 
@@ -295,8 +305,10 @@ def experiment(
         if log_to_wandb:
             wandb.log(outputs)
 
+    #FIXME: Handle this
     #Save the trained model
-    save_path = variant.get('save_path', './models/dt_simglucose.pth')
+    #save_path = variant.get('save_path', './models/dt_simglucose.pth')
+    save_path = os.path.join(output_dir, "dt_simglucose.pth")
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     torch.save(model.state_dict(), save_path)
     print(f"\nModel saved to {save_path}")
@@ -388,10 +400,10 @@ if __name__ == '__main__':
     parser.add_argument('--dropout', type=float, default=0.1)
     parser.add_argument('--learning_rate', '-lr', type=float, default=1e-4)
     parser.add_argument('--weight_decay', '-wd', type=float, default=1e-4)
-    parser.add_argument('--warmup_steps', type=int, default=1)
-    parser.add_argument('--num_eval_episodes', type=int, default=1)
+    parser.add_argument('--warmup_steps', type=int, default=int(1e3))
+    parser.add_argument('--num_eval_episodes', type=int, default=20)
     parser.add_argument('--max_iters', type=int, default=10)
-    parser.add_argument('--num_steps_per_iter', type=int, default=10)
+    parser.add_argument('--num_steps_per_iter', type=int, default=int(1e4))
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
     
