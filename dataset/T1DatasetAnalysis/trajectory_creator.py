@@ -48,11 +48,21 @@ def load_patient_data(folder_path, patients, numbers, seeds, file_suffix=""):
 
                     # Extract observations and actions
                     obs = [np.array([bg], dtype=np.float32) for bg in df['BG']]
-                    if folder_path=='BB' or folder_path=='PID': 
+                    if folder_path=='BB' or folder_path=='PID':
+                        # Extract next observations (shifted BG, last one repeats or uses a convention)
+                        next_obs = np.roll(obs, -1, axis=0)  # Shift observations up, last one wraps around
+                        next_obs[-1] = obs[-1]  # Convention: last next_obs is same as last obs (terminal) 
                         acts = [np.array([action], dtype=np.float32) for action in df['insulin']]
+                        # Replace NaN in actions with 0, preserving shape
+                        acts = np.where(np.isnan(acts), 0.0, acts).astype(np.float32)
+                        # Ensure actions has the same shape as next_observations
+                        assert acts.shape == next_obs.shape, f"Shape mismatch: actions {acts.shape} vs next_observations {next_obs.shape}"
                         rewards = [np.array(create_reward(bg), dtype=np.float32) for bg in df['BG']] 
                         terminals = df['done'].values
-                    else: 
+                    else:
+                        # Extract next observations (shifted BG, last one repeats or uses a convention)
+                        next_obs = np.roll(obs, -1, axis=0)  # Shift observations up, last one wraps around
+                        next_obs[-1] = obs[-1]  # Convention: last next_obs is same as last obs (terminal)  
                         acts = [np.array([action], dtype=np.float32) for action in df['Action']]
                         rewards = df['reward'].values
                         terminals = df['done'].values
@@ -60,6 +70,7 @@ def load_patient_data(folder_path, patients, numbers, seeds, file_suffix=""):
                     # Append data to trajectory
                     traj.append({
                         'observations': np.asarray(obs, dtype=np.float32),
+                        'next_observations': np.asarray(next_obs, dtype=np.float32),
                         'actions': np.asarray(acts, dtype=np.float32),
                         'rewards': np.asarray(rewards, dtype=np.float32),
                         'terminals': np.asarray(terminals, dtype=bool)
@@ -187,39 +198,39 @@ if __name__ == "__main__":
 
     # Argument parser setup
     parser = argparse.ArgumentParser(description="Plot a single trajectory from patient data.")
-    parser.add_argument("--folder", type=str, required=True, help="Folder name (e.g., PPO, BB, PID).")
-    parser.add_argument("--patient_name", type=str, required=True, help="Patient name (e.g., adolescent#001).")
+    parser.add_argument("--folder", type=str, required=False, help="Folder name (e.g., PPO, BB, PID).")
+    parser.add_argument("--patient_name", type=str, required=False, help="Patient name (e.g., adolescent#001).")
     parser.add_argument("--trajectory_index", type=int, default=0, help="Trajectory index to plot (default: 0).")
     parser.add_argument("--save_dir", type=str, default=SAVE_DIR, help="Directory where output is saved (default: 'output').")
 
     # Parse arguments
     args = parser.parse_args()
 
-    # # Load data
-    # trajectories = load_patient_data(folder_path='PPO', 
-    #                                  patients=['adolescent', 'child', 'adult'], 
-    #                                  numbers=[f'#{i:03d}' for i in range(1, 11)], 
-    #                                  seeds=[f'seed{i}' for i in range(20)])
+    # Load data
+    trajectories = load_patient_data(folder_path='PPO', 
+                                     patients=['adolescent', 'child', 'adult'], 
+                                     numbers=[f'#{i:03d}' for i in range(1, 11)], 
+                                     seeds=[f'seed{i}' for i in range(20)])
     
     # Load data
-    # trajectories = load_patient_data(folder_path='BB', 
-    #                                  patients=['adolescent', 'child', 'adult'], 
-    #                                  numbers=[f'#{i:03d}' for i in range(1, 11)], 
-    #                                  seeds=[f'results{i}' for i in range(20)])
+    trajectories = load_patient_data(folder_path='BB', 
+                                     patients=['adolescent', 'child', 'adult'], 
+                                     numbers=[f'#{i:03d}' for i in range(1, 11)], 
+                                     seeds=[f'results{i}' for i in range(20)])
     
-    # # Load data
-    # trajectories = load_patient_data(folder_path='PID', 
-    #                                  patients=['adolescent', 'child', 'adult'], 
-    #                                  numbers=[f'#{i:03d}' for i in range(1, 11)], 
-    #                                  seeds=[f'results{i}' for i in range(20)])
+    # Load data
+    trajectories = load_patient_data(folder_path='PID', 
+                                     patients=['adolescent', 'child', 'adult'], 
+                                     numbers=[f'#{i:03d}' for i in range(1, 11)], 
+                                     seeds=[f'results{i}' for i in range(20)])
     
     # Call the function with parsed arguments
-    plot_single_trajectory(
-        folder=args.folder,
-        patient_name=args.patient_name,
-        base_output_path=args.save_dir,
-        trajectory_index=args.trajectory_index
-    )
+    # plot_single_trajectory(
+    #     folder=args.folder,
+    #     patient_name=args.patient_name,
+    #     base_output_path=args.save_dir,
+    #     trajectory_index=args.trajectory_index
+    # )
 
 
 

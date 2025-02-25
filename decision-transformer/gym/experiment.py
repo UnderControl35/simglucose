@@ -312,6 +312,11 @@ def experiment(
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     torch.save(model.state_dict(), save_path)
     print(f"\nModel saved to {save_path}")
+
+    artifact = wandb.Artifact(name="model_files", type="model")
+    artifact.add_dir(output_dir)
+    wandb.log_artifact(artifact)
+    print(f"Uploaded Models folder as artifact 'model_files' to W&B")
         
 
 
@@ -389,7 +394,7 @@ if __name__ == '__main__':
     parser.add_argument('--env', type=str, default='simglucose') #halfcheetah hopper
     parser.add_argument('--dataset', type=str, default='medium')
     parser.add_argument('--mode', type=str, default='normal')
-    parser.add_argument('--K', type=int, default=20)
+    parser.add_argument('--K', type=int, default=60)
     parser.add_argument('--pct_traj', type=float, default=1.0)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--model_type', type=str, default='dt')
@@ -401,11 +406,11 @@ if __name__ == '__main__':
     parser.add_argument('--learning_rate', '-lr', type=float, default=1e-4)
     parser.add_argument('--weight_decay', '-wd', type=float, default=1e-4)
     parser.add_argument('--warmup_steps', type=int, default=int(1e3))
-    parser.add_argument('--num_eval_episodes', type=int, default=20)
+    parser.add_argument('--num_eval_episodes', type=int, default=100)
     parser.add_argument('--max_iters', type=int, default=10)
-    parser.add_argument('--num_steps_per_iter', type=int, default=int(1e4))
+    parser.add_argument('--num_steps_per_iter', type=int, default=int(1e5))
     parser.add_argument('--device', type=str, default='cuda')
-    parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
+    parser.add_argument('--log_to_wandb', '-w', type=bool, default=True)
     
     args = parser.parse_args()
 

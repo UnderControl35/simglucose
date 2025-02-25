@@ -20,6 +20,7 @@ dataset/T1DatasetAnalysis/*
 # Allow specific scripts
 !dataset/T1DatasetAnalysis/data_analysis.py
 !dataset/T1DatasetAnalysis/trajectory_creator.py
+!dataset/T1DatasetAnalysis/generate_combined_data.sh
 
 # Ignore dataset files
 dataset/Datad4rl/*

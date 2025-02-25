@@ -103,7 +103,7 @@ def evaluate_episode_rtg(
     for t in range(max_ep_len):
 
         #TODO: This is only for test
-        env.render(mode='human')
+        #env.render(mode='human')
         # add padding
         actions = torch.cat([actions, torch.zeros((1, act_dim), device=device)], dim=0)
         rewards = torch.cat([rewards, torch.zeros(1, device=device)])
