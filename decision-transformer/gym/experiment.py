@@ -80,11 +80,8 @@ def experiment(
     state_dim = env.observation_space.shape[0]
     act_dim = env.action_space.shape[0]
 
-    # load dataset
-    #FIXME: Create generic path to read file from argument!
-    #dataset_path = f'data/{env_name}-{dataset}-v2.pkl'
-    dataset_path = f'dataset/Collected/DATA_eps_1-2025-02-12 23:09:00.pkl'
-    #dataset_path = f'/home/guleserhocam/VS_Projects/simglucose/dataset/T1DatasetAnalysis/BB/output/adolescent#001/adolescent#001_combined_seed.pkl'
+    #Load dataset
+    dataset_path = variant['datapath']
     with open(dataset_path, 'rb') as f:
         trajectories = pickle.load(f)
 
@@ -104,7 +101,6 @@ def experiment(
     states = np.concatenate(states, axis=0)
     state_mean, state_std = np.mean(states, axis=0), np.std(states, axis=0) + 1e-6
 
-    #TODO: create file with run date
     # Save state_mean and state_std as .npy files
     output_dir = f"models/{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"  # Create a directory for this experiment
     os.makedirs(output_dir, exist_ok=True)    # Ensure directory exists
@@ -207,6 +203,7 @@ def experiment(
                             state_mean=state_mean,
                             state_std=state_std,
                             device=device,
+                            test=variant['test'],
                         )
                     else:
                         ret, length = evaluate_episode(
@@ -304,20 +301,22 @@ def experiment(
         outputs = trainer.train_iteration(num_steps=variant['num_steps_per_iter'], iter_num=iter+1, print_logs=True)
         if log_to_wandb:
             wandb.log(outputs)
-
-    #FIXME: Handle this
+          
     #Save the trained model
+    #TODO: variant.get ne yapıyor bak!
     #save_path = variant.get('save_path', './models/dt_simglucose.pth')
-    save_path = os.path.join(output_dir, "dt_simglucose.pth")
+    save_name = variant['savename']
+    save_path = os.path.join(output_dir, f'{save_name}.pth')
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     torch.save(model.state_dict(), save_path)
     print(f"\nModel saved to {save_path}")
 
-    artifact = wandb.Artifact(name="model_files", type="model")
-    artifact.add_dir(output_dir)
-    wandb.log_artifact(artifact)
-    print(f"Uploaded Models folder as artifact 'model_files' to W&B")
-        
+    if log_to_wandb:
+        artifact = wandb.Artifact(name="model_files", type="model")
+        artifact.add_dir(output_dir)
+        wandb.log_artifact(artifact)
+        print(f"Uploaded Models folder as artifact 'model_files' to W&B")
+
 
 
 if __name__ == '__main__':
@@ -394,7 +393,7 @@ if __name__ == '__main__':
     parser.add_argument('--env', type=str, default='simglucose') #halfcheetah hopper
     parser.add_argument('--dataset', type=str, default='medium')
     parser.add_argument('--mode', type=str, default='normal')
-    parser.add_argument('--K', type=int, default=60)
+    parser.add_argument('--K', type=int, default=20)
     parser.add_argument('--pct_traj', type=float, default=1.0)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--model_type', type=str, default='dt')
@@ -408,9 +407,18 @@ if __name__ == '__main__':
     parser.add_argument('--warmup_steps', type=int, default=int(1e3))
     parser.add_argument('--num_eval_episodes', type=int, default=100)
     parser.add_argument('--max_iters', type=int, default=10)
-    parser.add_argument('--num_steps_per_iter', type=int, default=int(1e5))
+    parser.add_argument('--num_steps_per_iter', type=int, default=int(1e4))
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--log_to_wandb', '-w', type=bool, default=True)
+    parser.add_argument('--test', type=bool, default=False)
+    parser.add_argument('--patient_name', type=str, default='adolescent#001')
+
+    #FIXME: Change the default path
+    default_patient = 'adolescent#001'
+    default_path = f'/home/guleserhocam/VS_Projects/simglucose/dataset/T1DatasetAnalysis/BB/output/{default_patient}/{default_patient}_combined_seed.pkl'
+
+    parser.add_argument('--datapath', type=str, default=default_path)
+    parser.add_argument('--savename', type=str, default=f'DT_BB_{default_patient}')
     
     args = parser.parse_args()
 
