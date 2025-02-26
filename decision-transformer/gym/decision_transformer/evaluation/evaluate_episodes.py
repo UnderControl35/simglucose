@@ -74,6 +74,7 @@ def evaluate_episode_rtg(
         device='cuda',
         target_return=None,
         mode='normal',
+        test='False',
     ):
 
     model.eval()
@@ -102,8 +103,9 @@ def evaluate_episode_rtg(
     episode_return, episode_length = 0, 0
     for t in range(max_ep_len):
 
-        #TODO: This is only for test
-        #env.render(mode='human')
+        if test:
+            env.render(mode='human')
+        
         # add padding
         actions = torch.cat([actions, torch.zeros((1, act_dim), device=device)], dim=0)
         rewards = torch.cat([rewards, torch.zeros(1, device=device)])
