@@ -68,7 +68,9 @@ def test_decision_transformer(model_path="dt_test.pth", env_name="hopper", num_e
         attn_pdrop=0.1    # Adjust to match your training
     )
 
-    model_path_file = os.path.join(model_path, "DT_BB_adolescent#001.pth")
+    # model_path_file = os.path.join(model_path, "DT_BB_adolescent#001.pth")
+    # model_path_file = os.path.join(model_path, "DT_PPO_adolescent#001.pth")
+    model_path_file = os.path.join(model_path, "DT_PID_adolescent#001.pth")
     # Load the saved state dictionary
     state_dict = torch.load(model_path_file, map_location=device)
     model.load_state_dict(state_dict)
@@ -131,7 +133,8 @@ def test_decision_transformer(model_path="dt_test.pth", env_name="hopper", num_e
 if __name__ == "__main__":
     # You can modify these parameters
     test_decision_transformer(
-        model_path="models/2025-02-26_06-39-37",
+        # model_path="models/2025-02-27_14-07-22",
+        model_path = "models/2025-02-27_06-23-42",
         env_name="simglucose",  # Change to your environment
         num_episodes=10     # Number of test episodes
     )

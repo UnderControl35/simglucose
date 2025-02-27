@@ -415,10 +415,11 @@ if __name__ == '__main__':
 
     #FIXME: Change the default path
     default_patient = 'adolescent#001'
-    default_path = f'/home/guleserhocam/VS_Projects/simglucose/dataset/T1DatasetAnalysis/BB/output/{default_patient}/{default_patient}_combined_seed.pkl'
+    algo = 'PPO'
+    default_path = f'/home/guleserhocam/VS_Projects/simglucose/dataset/T1DatasetAnalysis/{algo}/output/{default_patient}/{default_patient}_combined_seed.pkl'
 
     parser.add_argument('--datapath', type=str, default=default_path)
-    parser.add_argument('--savename', type=str, default=f'DT_BB_{default_patient}')
+    parser.add_argument('--savename', type=str, default=f'DT_{algo}_{default_patient}')
     
     args = parser.parse_args()
 
