@@ -40,4 +40,4 @@ decision-transformer/gym/*
 !decision-transformer/gym/experiment_modified.py
 
 rllab
-online-dt
+#online-dt
