@@ -11,14 +11,16 @@ import pickle
 import random
 import time
 import gym
-import d4rl
+# import d4rl
 import torch
 import numpy as np
 
 import utils
 from replay_buffer import ReplayBuffer
 from lamb import Lamb
-from stable_baselines3.common.vec_env import SubprocVecEnv
+#BUG: SubprocVecEnv is not available in stable_baselines3 debugger will not work
+#from stable_baselines3.common.vec_env import SubprocVecEnv
+from parallel_env import SimpleParallelEnv
 from pathlib import Path
 from data import create_dataloader
 from decision_transformer.models.decision_transformer import DecisionTransformer
@@ -29,8 +31,8 @@ from logger import Logger
 import simglucose
 from gym.envs.registration import register
 
-import warnings
-warnings.filterwarnings("ignore")
+# import warnings
+# warnings.filterwarnings("ignore")
 
 register(
     id='simglucose-adolescent1-v0',
@@ -45,9 +47,7 @@ class Experiment:
     def __init__(self, variant):
 
         self.state_dim, self.act_dim, self.action_range = self._get_env_spec(variant)
-        self.offline_trajs, self.state_mean, self.state_std = self._load_dataset(
-            variant["env"]
-        )
+        self.offline_trajs, self.state_mean, self.state_std = self._load_dataset(variant)
         # initialize by offline trajs
         self.replay_buffer = ReplayBuffer(variant["replay_size"], self.offline_trajs)
 
@@ -108,7 +108,7 @@ class Experiment:
         action_range = [
             float(env.action_space.low.min()) + 1e-6,
             float(env.action_space.high.max()) - 1e-6,
-        ]
+        ] #It is managed to handle zero values
         env.close()
         return state_dim, act_dim, action_range
 
@@ -154,10 +154,10 @@ class Experiment:
             torch.set_rng_state(checkpoint["pytorch"])
             print(f"Model loaded at {path_prefix}/model.pt")
 
-    def _load_dataset(self, env_name):
+    def _load_dataset(self, arguments):
 
-        #dataset_path = f"./data/{env_name}.pkl"
-        dataset_path = '/home/guleserhocam/VS_Projects/simglucose/dataset/T1DatasetAnalysis/BB/output/adolescent#001/adolescent#001_combined_seed.pkl'
+        env_name = arguments["env"]
+        dataset_path = arguments["data_path"]
         with open(dataset_path, "rb") as f:
             trajectories = pickle.load(f)
 
@@ -400,7 +400,7 @@ class Experiment:
 
         utils.set_seed_everywhere(args.seed)
 
-        import d4rl
+        #import d4rl
 
         def loss_fn(
             a_hat_dist,
@@ -420,6 +420,7 @@ class Experiment:
                 entropy,
             )
 
+        #FIXME: Design for simglucose
         def get_env_builder(seed, env_name, target_goal=None):
             def make_env_fn():
                 import d4rl
@@ -450,8 +451,9 @@ class Experiment:
             env.close()
             print(f"Generated the fixed target goal: {target_goal}")
         else:
-            target_goal = None
-        eval_envs = SubprocVecEnv(
+            #target_goal = None
+            target_goal = [180, 70]
+        eval_envs = SimpleParallelEnv(
             [
                 get_env_builder(i, env_name=env_name, target_goal=target_goal)
                 for i in range(self.variant["num_eval_episodes"])
@@ -480,6 +482,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=10)
     parser.add_argument("--env", type=str, default="simglucose-adolescent1-v0")
+
+    # data options
+    parser.add_argument("--data_path", type=str, 
+                        default="./dataset/T1DatasetAnalysis/BB/output/adolescent#001/adolescent#001_combined_seed.pkl")
+    
 
     # model options
     parser.add_argument("--K", type=int, default=20)
