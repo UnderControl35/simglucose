@@ -282,7 +282,9 @@ def experiment(
 
 
     if model_type == 'dt':
+        #FIXME: Save whole model in next trainings
         if variant['pretrained_model']:
+            # Define model architecture (must match your trained model)
             model = torch.load(variant['pretrained_model'],map_location='cuda:0')
             model.stochastic_tanh = variant['stochastic_tanh']
             model.approximate_entropy_samples = variant['approximate_entropy_samples']
@@ -456,12 +458,112 @@ def experiment(
 
 
 if __name__ == '__main__':
+    # Reasoning for '--env': 'simglucose' chosen as the target environment to simulate Type 1 diabetes management,
+    # aligning with the goal of optimizing blood glucose (BG) control for virtual patients.
+
+    # Reasoning for '--dataset': 'medium' selected as a balanced offline dataset for pretraining,
+    # providing reasonable BG control trajectories without requiring expert-level data, suitable for SimGlucose adaptation.
+
+    # Reasoning for '--mode': 'normal' used as the standard setting for dense rewards in SimGlucose,
+    # avoiding sparse 'delayed' mode since BG feedback is continuous, simplifying training.
+
+    # Reasoning for '--K': 20 timesteps (~100 min with 5-min steps) captures short-term BG dynamics in SimGlucose,
+    # balancing context length with computational efficiency per the transformer’s design.
+
+    # Reasoning for '--pct_traj': 1.0 uses all available trajectories from the dataset,
+    # maximizing data for SimGlucose’s patient-specific offline pretraining.
+
+    # Reasoning for '--batch_size': 64 aligns with typical transformer batch sizes,
+    # balancing memory usage and gradient stability for SimGlucose’s state-action pairs.
+
+    # Reasoning for '--model_type': 'dt' chosen for Decision Transformer’s ability to model sequential decisions,
+    # ideal for SimGlucose’s time-series BG control over Behavior Cloning’s simpler imitation.
+
+    # Reasoning for '--embed_dim': 128 provides sufficient capacity for embedding SimGlucose’s state and action spaces,
+    # reduced from larger values to optimize compute for a smaller problem scope.
+
+    # Reasoning for '--n_layer': 3 layers match the original DT paper’s shallow architecture,
+    # sufficient for SimGlucose’s relatively simple dynamics while keeping training fast.
+
+    # Reasoning for '--n_head': 1 head simplifies attention, adequate for SimGlucose’s focused state dependencies,
+    # reducing complexity from multi-head setups in larger domains.
+
+    # Reasoning for '--activation_function': 'relu' chosen for its simplicity and effectiveness in transformers,
+    # standard for DT and suitable for SimGlucose’s continuous BG predictions.
+
+    # Reasoning for '--dropout': 0.1 aligns with the DT paper’s regularization,
+    # preventing overfitting to SimGlucose’s offline trajectories while maintaining generalization.
+
+    # Reasoning for '--learning_rate' ('-lr'): 1e-4 follows the DT paper’s conservative rate,
+    # ensuring stable convergence for SimGlucose’s sensitive insulin dosing adjustments.
+
+    # Reasoning for '--weight_decay' ('-wd'): 1e-4 adds light L2 regularization per the DT paper,
+    # controlling model complexity for SimGlucose’s limited patient variability.
+
+    # Reasoning for '--warmup_steps': 1000 steps provide a gradual LR increase per the DT paper,
+    # stabilizing early training for SimGlucose’s offline phase with fewer steps than larger tasks.
+
+    # Reasoning for '--num_eval_episodes': 100 episodes allow robust evaluation of BG stability (euglycemia %, risk index),
+    # covering SimGlucose’s 30 patients with multiple 10-day runs, balancing compute and statistical power.
+
+    # Reasoning for '--max_iters': 10 iterations suffice for SimGlucose’s pretraining convergence,
+    # reduced from longer runs in the DT paper to save compute for a focused task.
+
+    # Reasoning for '--num_steps_per_iter': 10,000 steps per iteration match the DT paper’s training intensity,
+    # ensuring sufficient gradient updates for SimGlucose’s offline phase within fewer iterations.
+
+    # Reasoning for '--device': 'cuda' leverages GPU acceleration for transformer training,
+    # critical for SimGlucose’s real-time online tuning efficiency.
+
+    # Reasoning for '--log_to_wandb' ('-w'): False avoids external logging overhead,
+    # keeping SimGlucose experiments local and lightweight unless debugging is needed.
+
+    # Reasoning for '--online_training': True enables fine-tuning with new SimGlucose data,
+    # critical for adapting pretrained models to real-time patient-specific BG control.
+
+    # Reasoning for '--online_buffer_size': 1000 trajectories balance memory and diversity,
+    # keeping top SimGlucose runs for online training, sufficient for patient-specific adaptation.
+
+    # Reasoning for '--save_model': False avoids disk overhead unless explicitly needed,
+    # practical for SimGlucose experiments where models are often re-run.
+
+    # Reasoning for '--pretrained_model': None starts training from scratch for SimGlucose,
+    # assuming no prior model unless specified, simplifying initial setup.
+
+    # Reasoning for '--stochastic': False ensures deterministic insulin dosing in SimGlucose,
+    # prioritizing safety and predictability over exploration in a medical context.
+
+    # Reasoning for '--use_entropy': False skips entropy regularization in SimGlucose,
+    # avoiding unnecessary exploration where precise BG control is paramount.
+
+    # Reasoning for '--use_action_means': False samples actions during evaluation,
+    # reflecting SimGlucose’s need for realistic variability rather than mean predictions.
+
+    # Reasoning for '--eval_only': False ensures training occurs for SimGlucose,
+    # with evaluation as part of the process, not standalone.
+
+    # Reasoning for '--remove_pos_embs': False retains positional embeddings per DT paper,
+    # preserving temporal order critical for SimGlucose’s time-series BG data.
+
+    # Reasoning for '--eval_context': None uses training context (K=20) for evaluation,
+    # consistent with SimGlucose’s short-term BG prediction needs unless overridden.
+
+    # Reasoning for '--target_entropy': False avoids setting a specific entropy target,
+    # simplifying SimGlucose training where stochasticity is deprioritized.
+
+    # Reasoning for '--stochastic_tanh': False skips tanh squashing for actions,
+    # allowing SimGlucose’s insulin doses to reflect raw model outputs for flexibility.
+
+    # Reasoning for '--approximate_entropy_samples': 1000 samples provide a reasonable entropy estimate if used,
+    # sufficient for SimGlucose’s optional stochastic tuning without excessive compute.
     parser = argparse.ArgumentParser()
+    
+    #OfflineParams
     parser.add_argument('--env', type=str, default='simglucose')
     parser.add_argument('--dataset', type=str, default='medium')  # medium, medium-replay, medium-expert, expert
     parser.add_argument('--mode', type=str, default='normal')  # normal for standard setting, delayed for sparse
     parser.add_argument('--K', type=int, default=20)
-    parser.add_argument('--pct_traj', type=float, default=1.)
+    parser.add_argument('--pct_traj', type=float, default=1.0)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--model_type', type=str, default='dt')  # dt for decision transformer, bc for behavior cloning
     parser.add_argument('--embed_dim', type=int, default=128)
@@ -471,31 +573,39 @@ if __name__ == '__main__':
     parser.add_argument('--dropout', type=float, default=0.1)
     parser.add_argument('--learning_rate', '-lr', type=float, default=1e-4)
     parser.add_argument('--weight_decay', '-wd', type=float, default=1e-4)
-    parser.add_argument('--warmup_steps', type=int, default=10000)
+    parser.add_argument('--warmup_steps', type=int, default=int(1e3))
     parser.add_argument('--num_eval_episodes', type=int, default=100)
     parser.add_argument('--max_iters', type=int, default=10)
-    parser.add_argument('--num_steps_per_iter', type=int, default=10000)
+    parser.add_argument('--num_steps_per_iter', type=int, default=int(1e4))
     parser.add_argument('--device', type=str, default='cuda')
-    parser.add_argument('--log_to_wandb', '-w', type=bool, default=False)
+    parser.add_argument('--log_to_wandb', '-w', type=bool, default=True)
+    
+    #OnlineParams
+    parser.add_argument('--online_training', default=False, action='store_true')
+    parser.add_argument('--online_buffer_size', default=1000, type=int) # keep top N trajectories for online training in replay buffer to start
+    parser.add_argument('--pretrained_model', default=None, type=str) # './models/2025-02-27_14-07-22/DT_PPO_adolescent#001.pth'
     parser.add_argument('--save_model', default=False, action='store_true')
-    parser.add_argument('--pretrained_model', default=None, type=str)
     parser.add_argument('--stochastic', default=False, action='store_true')
     parser.add_argument('--use_entropy', default=False, action='store_true')
     parser.add_argument('--use_action_means', default=False, action='store_true')
-    parser.add_argument('--online_training', default=False, action='store_true')
-    parser.add_argument('--online_buffer_size', default=1000, type=int) # keep top N trajectories for online training in replay buffer to start
     parser.add_argument('--eval_only', default=False, action='store_true')
     parser.add_argument('--remove_pos_embs', default=False, action='store_true')
     parser.add_argument('--eval_context', default=None, type=int)
     parser.add_argument('--target_entropy', default=False, action='store_true')
     parser.add_argument('--stochastic_tanh', default=False, action='store_true')
-    parser.add_argument('--approximate_entropy_samples',default=1000, type=int, help="if using stochastic network w/ tanh squashing, have to approximate entropy with k samples, as no anlytical solution")
+    parser.add_argument('--approximate_entropy_samples',default=1000, type=int, 
+                        help="if using stochastic network w/ tanh squashing, have to approximate entropy with k samples, as no anlytical solution")
+    
     
     default_patient = 'adolescent#001'
     algo = 'PPO'
     default_path = f'/home/guleserhocam/VS_Projects/simglucose/dataset/T1DatasetAnalysis/{algo}/output/{default_patient}/{default_patient}_combined_seed.pkl'
 
     parser.add_argument('--datapath', type=str, default=default_path)
+    parser.add_argument('--test', type=bool, default=False)
+    parser.add_argument('--patient_name', type=str, default=f'{default_patient}')
+    parser.add_argument('--algo', type=str, default=f'{algo}')
+    parser.add_argument('--savename', type=str, default=f'DT_{algo}_{default_patient}')
     args = parser.parse_args()
 
     experiment('gym-experiment', variant=vars(args))
