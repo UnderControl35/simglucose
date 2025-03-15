@@ -4,6 +4,7 @@
 # Results folder
 /results/
 models/*
+exp/
 
 # Setuptools distribution folder.
 /dist/
@@ -37,8 +38,6 @@ decision-transformer/gym/*
 !decision-transformer/gym/decision_transformer/
 !decision-transformer/gym/experiment.py
 !decision-transformer/gym/enjoy_experiment.py
-!decision-transformer/gym/experiment_modified.py
-!decision-transformer/gym/odt_main_2.py
 
 rllab
 #online-dt
