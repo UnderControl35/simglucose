@@ -105,7 +105,7 @@ def test_decision_transformer(model_path="dt_test.pth", env_name="hopper", num_e
                     state_mean=state_mean,
                     state_std=state_std,
                     device=device,
-                    test='True'
+                    test='True' #FIXME: Make boolean
                 )
             returns.append(ret)
             lengths.append(length)

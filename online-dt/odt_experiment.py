@@ -255,7 +255,8 @@ def experiment(
                             state_std=state_std,
                             device=device,
                             use_means=variant['use_action_means'],
-                            eval_context=variant['eval_context']
+                            eval_context=variant['eval_context'],
+                            test=variant['test'],
                         )
                     else:
                         ret, length = evaluate_episode(
@@ -438,7 +439,8 @@ def experiment(
                             state_std=state_std,
                             device=device,
                             use_means=False,
-                            return_traj=True
+                            return_traj=True,
+                            test=variant['test'],
                 )
                 # Remove oldest trajectory, add new trajectory
                 trajectories = trajectories[1:]
