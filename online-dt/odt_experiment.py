@@ -583,9 +583,9 @@ if __name__ == '__main__':
     parser.add_argument('--log_to_wandb', '-w', type=bool, default=True)
     
     #OnlineParams
-    parser.add_argument('--online_training', default=False, action='store_true')
+    parser.add_argument('--online_training', default=True, action='store_true')
     parser.add_argument('--online_buffer_size', default=1000, type=int) # keep top N trajectories for online training in replay buffer to start
-    parser.add_argument('--pretrained_model', default=None, type=str) # './models/2025-02-27_14-07-22/DT_PPO_adolescent#001.pth'
+    parser.add_argument('--pretrained_model', default='models/2025-03-15_14-13-02_offline/dt_gym-experiment-simglucose-medium-392175.pt', type=str) # './models/2025-02-27_14-07-22/DT_PPO_adolescent#001.pth'
     parser.add_argument('--save_model', default=False, action='store_true')
     parser.add_argument('--stochastic', default=False, action='store_true')
     parser.add_argument('--use_entropy', default=False, action='store_true')
