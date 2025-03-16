@@ -34,10 +34,9 @@ wandb
 # Remove after DT and ODT implementation
 decision-transformer/*
 !decision-transformer/gym/
-decision-transformer/gym/*
-!decision-transformer/gym/decision_transformer/
-!decision-transformer/gym/experiment.py
-!decision-transformer/gym/enjoy_experiment.py
+!decision-transformer/gym/*
+decision-transformer/gym/D4RL/
+decision-transformer/gym/data/
 
 rllab
 #online-dt

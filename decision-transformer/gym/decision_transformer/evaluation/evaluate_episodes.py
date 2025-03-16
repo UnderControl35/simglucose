@@ -74,7 +74,8 @@ def evaluate_episode_rtg(
         device='cuda',
         target_return=None,
         mode='normal',
-        test='False',
+        render=False,
+        debug=False
     ):
 
     model.eval()
@@ -103,7 +104,7 @@ def evaluate_episode_rtg(
     episode_return, episode_length = 0, 0
     for t in range(max_ep_len):
 
-        if test:
+        if render:
             env.render(mode='human')
         
         # add padding
@@ -125,6 +126,13 @@ def evaluate_episode_rtg(
         cur_state = torch.from_numpy(state).to(device=device).reshape(1, state_dim)
         states = torch.cat([states, cur_state], dim=0)
         rewards[-1] = reward
+
+        #for debugging
+        if debug: 
+            state_str = f'{state:.3f}' if isinstance(state, (int, float)) else np.array2string(state, precision=3, separator=', ')
+            action_str = f'{action:.3f}' if isinstance(action, (int, float)) else np.array2string(action, precision=3, separator=', ')
+            reward_str = f'{reward:.3f}'
+            print(f'Observation: {state_str}, Action: {action_str}, Reward: {reward_str}')
 
         if mode != 'delayed':
             pred_return = target_return[0,-1] - (reward/scale)
