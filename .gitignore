@@ -1,11 +1,6 @@
 # Compiled python modules.
 *.pyc
 
-# Results folder
-/results/
-models/*
-exp/
-
 # Setuptools distribution folder.
 /dist/
 /build/
@@ -28,6 +23,12 @@ dataset/Datad4rl/*
 dataset/Collected/*
 /*.csv
 
+# Results folder
+/results/
+models/*
+#models_backup/
+exp/
+
 # Ignore wandb file
 wandb
 
@@ -37,6 +38,8 @@ decision-transformer/*
 !decision-transformer/gym/*
 decision-transformer/gym/D4RL/
 decision-transformer/gym/data/
+decision-transformer/gym/wandb
+decision-transformer/gym/wandb/*
 
 rllab
 #online-dt

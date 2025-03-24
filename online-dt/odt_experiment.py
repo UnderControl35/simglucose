@@ -21,11 +21,23 @@ from decision_transformer.training.seq_trainer import SequenceTrainer
 import simglucose
 from gym.envs.registration import register
 
-register(
-    id='simglucose-adolescent1-v0',
-    entry_point='simglucose.envs:T1DSimEnv',
-    kwargs={'patient_name': 'adolescent#001'}
-)
+def convert_patient_id(patient_id):
+    prefix, number = patient_id.split("#")
+    number = str(int(number))
+    return prefix + number
+
+# Register the environment once at the module level
+default_patient = 'adolescent#001'
+patient_id = convert_patient_id(default_patient)
+env_id = f'simglucose-{patient_id}-v0'
+
+# Check if already registered to avoid re-registration
+if env_id not in gym.envs.registry.env_specs:
+    register(
+        id=env_id,
+        entry_point='simglucose.envs:T1DSimEnv',
+        kwargs={'patient_name': default_patient}
+    )
 
 
 def discount_cumsum(x, gamma):
@@ -54,49 +66,18 @@ def experiment(
     #     os.makedirs(model_dir)
 
     if env_name == 'simglucose':
-        env = gym.make('simglucose-adolescent1-v0')
+        env = gym.make(env_id)
         max_ep_len = 480
-        env_targets = [180, 70]
+        env_targets = [3600]
         scale = 1000.
-    elif env_name == 'hopper':
-        env = gym.make('Hopper-v3')
-        max_ep_len = 1000
-        env_targets = [3600, 1800]  # evaluation conditioning targets
-        scale = 1000.  # normalization for rewards/returns
-    elif env_name == 'halfcheetah':
-        env = gym.make('HalfCheetah-v3')
-        max_ep_len = 1000
-        env_targets = [12000, 6000]
-        scale = 1000.
-    elif env_name == 'walker2d':
-        env = gym.make('Walker2d-v3')
-        max_ep_len = 1000
-        env_targets = [5000, 2500]
-        scale = 1000.
-    elif env_name == 'reacher2d':
-        from decision_transformer.envs.reacher_2d import Reacher2dEnv
-        env = Reacher2dEnv()
-        max_ep_len = 100
-        env_targets = [76, 40]
-        scale = 10.
     else:
         raise NotImplementedError
     
     # Override env_targets / set different training target for online decision transformer, following paper
     if variant['online_training']:
         if env_name == 'simglucose':
-            env_targets = [180]
-            target_online = 360
-
-        elif env_name == 'hopper':
-            env_targets = [3600]  # evaluation conditioning targets
-            target_online = 7200
-        elif env_name == 'halfcheetah':
-            env_targets = [6000]
-            target_online = 12000
-        elif env_name == 'walker2d':
-            env_targets = [5000]
-            target_online = 10000
+            env_targets = [3600]
+            target_online = 4800
         else:
             raise NotImplementedError
 
@@ -583,10 +564,11 @@ if __name__ == '__main__':
     parser.add_argument('--log_to_wandb', '-w', type=bool, default=True)
     
     #OnlineParams
-    parser.add_argument('--online_training', default=True, action='store_true')
+    parser.add_argument('--online_training', default=False, action='store_true')
     parser.add_argument('--online_buffer_size', default=1000, type=int) # keep top N trajectories for online training in replay buffer to start
-    parser.add_argument('--pretrained_model', default='models/2025-03-15_14-13-02_offline/dt_gym-experiment-simglucose-medium-392175.pt', type=str) # './models/2025-02-27_14-07-22/DT_PPO_adolescent#001.pth'
-    parser.add_argument('--save_model', default=False, action='store_true')
+    #parser.add_argument('--pretrained_model', default='/home/guleserhocam/VS_Projects/simglucose/models/2025-03-16_17-42-54_offline/dt_BB-simglucose-medium-219427.pt', type=str) # './models/2025-02-27_14-07-22/DT_PPO_adolescent#001.pth'
+    parser.add_argument('--pretrained_model', default=None, type=str)
+    parser.add_argument('--save_model', default=True, action='store_true')
     parser.add_argument('--stochastic', default=False, action='store_true')
     parser.add_argument('--use_entropy', default=False, action='store_true')
     parser.add_argument('--use_action_means', default=False, action='store_true')
@@ -610,4 +592,5 @@ if __name__ == '__main__':
     parser.add_argument('--savename', type=str, default=f'DT_{algo}_{default_patient}')
     args = parser.parse_args()
 
-    experiment('gym-experiment', variant=vars(args))
+    experiment(f'{algo}', variant=vars(args))
+    print("Finished all experiments")

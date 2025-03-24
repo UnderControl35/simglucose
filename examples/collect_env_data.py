@@ -66,13 +66,26 @@ def main():
     # you are able to choose which patient to simulate.
     # patient_name must be 'adolescent#001' to 'adolescent#010',
     # or 'adult#001' to 'adult#010', or 'child#001' to 'child#010'
-    register(
-        id='simglucose-adult-v1',
-        entry_point='simglucose.envs:T1DSimEnv',
-        kwargs={'patient_name': 'adult#001',}
-    )
 
-    env = gym.make('simglucose-adult-v1')
+    def convert_patient_id(patient_id):
+        prefix, number = patient_id.split("#")
+        number = str(int(number))
+        return prefix + number
+
+    # Register the environment once at the module level
+    default_patient = 'adolescent#001'
+    patient_id = convert_patient_id(default_patient)
+    env_id = f'simglucose-{patient_id}-v0'
+
+    # Check if already registered to avoid re-registration
+    if env_id not in gym.envs.registry.env_specs:
+        register(
+            id=env_id,
+            entry_point='simglucose.envs:T1DSimEnv',
+            kwargs={'patient_name': default_patient}
+        )
+
+    env = gym.make(env_id)
     observation = env.reset()
     action_ref = 0
     act_obj = PIDAction(P=args.pid_tune[0], 

@@ -131,6 +131,11 @@ def evaluate_episode_rtg(
         states = torch.cat([states, cur_state], dim=0)
         rewards[-1] = reward
 
+        state_str = f'{state:.3f}' if isinstance(state, (int, float)) else np.array2string(state, precision=3, separator=', ')
+        action_str = f'{action:.3f}' if isinstance(action, (int, float)) else np.array2string(action, precision=3, separator=', ')
+        reward_str = f'{reward:.3f}'
+        print(f'Observation: {state_str}, Action: {action_str}, Reward: {reward_str}')
+
         if mode != 'delayed':
             pred_return = target_return[0,-1] - (reward/scale)
         else:

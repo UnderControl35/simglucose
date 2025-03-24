@@ -149,10 +149,10 @@ def test_decision_transformer(variants):
                 
                 # Log metrics to W&B
                 wandb.log({
-                    f"{algo}/target_{target}_mean_return": mean_return,
-                    f"{algo}/target_{target}_std_return": std_return,
-                    f"{algo}/target_{target}_mean_length": mean_length,
-                    f"{algo}/target_{target}_success_rate": success_rate,
+                    f"target_{target}_mean_return": mean_return,
+                    f"target_{target}_std_return": std_return,
+                    f"target_{target}_mean_length": mean_length,
+                    f"target_{target}_success_rate": success_rate,
                     "iteration": iter_num + 1
                 })
 
@@ -193,7 +193,7 @@ def run_sweep():
         'model_dir': None,
         'patient_name': default_patient,
         'algo': 'BB',
-        'num_eval_episodes': 1,
+        'num_eval_episodes': 10,
         'env_targets': [4800],  # Default to max SimGlucose episode length as target
         'K': 20
     }
@@ -208,16 +208,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--sweep', action='store_true', help="Run evaluation-only hyperparameter sweep")
-    parser.add_argument('--render', type=bool, default=False)
+    parser.add_argument('--render', type=bool, default=True)
+    parser.add_argument('--debug', type=bool, default=True)
     parser.add_argument('--env', type=str, default='simglucose')
     parser.add_argument('--model_type', type=str, default='dt')
     parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument('--num_eval_episodes', type=int, default=1)
     parser.add_argument('--max_iters', type=int, default=1)
-    parser.add_argument('--debug', type=bool, default=False)
     parser.add_argument('--model_dir', type=str, default='/home/guleserhocam/VS_Projects/simglucose/models/2025-02-26_06-39-37_offline')
     parser.add_argument('--patient_name', type=str, default=default_patient)
-    parser.add_argument('--algo', type=str, default='BB', choices=['BB', 'PID', 'PPO'], help="Algorithm: BB, PID or PPO")
+    parser.add_argument('--algo', type=str, default='PID', choices=['BB', 'PID', 'PPO'], help="Algorithm: BB, PID or PPO")
 
     args = parser.parse_args()
 
