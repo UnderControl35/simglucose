@@ -439,8 +439,7 @@ def experiment(
 
         torch.save(model,os.path.join(model_dir, model_type + '_' + exp_prefix + '.pt'))
 
-
-if __name__ == '__main__':
+def get_parser():
     # Reasoning for '--env': 'simglucose' chosen as the target environment to simulate Type 1 diabetes management,
     # aligning with the goal of optimizing blood glucose (BG) control for virtual patients.
 
@@ -539,34 +538,37 @@ if __name__ == '__main__':
 
     # Reasoning for '--approximate_entropy_samples': 1000 samples provide a reasonable entropy estimate if used,
     # sufficient for SimGlucose’s optional stochastic tuning without excessive compute.
-    parser = argparse.ArgumentParser()
     
-    #OfflineParams
-    parser.add_argument('--env', type=str, default='simglucose')
-    parser.add_argument('--dataset', type=str, default='medium')  # medium, medium-replay, medium-expert, expert
-    parser.add_argument('--mode', type=str, default='normal')  # normal for standard setting, delayed for sparse
-    parser.add_argument('--K', type=int, default=20)
-    parser.add_argument('--pct_traj', type=float, default=1.0)
-    parser.add_argument('--batch_size', type=int, default=64)
-    parser.add_argument('--model_type', type=str, default='dt')  # dt for decision transformer, bc for behavior cloning
-    parser.add_argument('--embed_dim', type=int, default=128)
-    parser.add_argument('--n_layer', type=int, default=3)
-    parser.add_argument('--n_head', type=int, default=1)
-    parser.add_argument('--activation_function', type=str, default='relu')
-    parser.add_argument('--dropout', type=float, default=0.1)
-    parser.add_argument('--learning_rate', '-lr', type=float, default=1e-4)
-    parser.add_argument('--weight_decay', '-wd', type=float, default=1e-4)
-    parser.add_argument('--warmup_steps', type=int, default=int(1e3))
-    parser.add_argument('--num_eval_episodes', type=int, default=100)
-    parser.add_argument('--max_iters', type=int, default=10)
-    parser.add_argument('--num_steps_per_iter', type=int, default=int(1e4))
-    parser.add_argument('--device', type=str, default='cuda')
-    parser.add_argument('--log_to_wandb', '-w', type=bool, default=True)
-    
-    #OnlineParams
+    parser = argparse.ArgumentParser(description="Decision Transformer Training")
+
+    # Core parameters
+    parser.add_argument('--env', default='simglucose', type=str)
+    parser.add_argument('--dataset', default='medium', choices=['medium', 'medium-replay', 'medium-expert', 'expert'])
+    parser.add_argument('--mode', default='normal', choices=['normal', 'delayed'])
+    parser.add_argument('--noisy', default=False, action='store_true', help="Use noisy (CGM) data instead of normal (BG)")
+
+    # Model hyperparameters
+    parser.add_argument('--K', default=20, type=int)
+    parser.add_argument('--pct_traj', default=1.0, type=float)
+    parser.add_argument('--batch_size', default=64, type=int)
+    parser.add_argument('--model_type', default='dt', choices=['dt', 'bc'])
+    parser.add_argument('--embed_dim', default=128, type=int)
+    parser.add_argument('--n_layer', default=3, type=int)
+    parser.add_argument('--n_head', default=1, type=int)
+    parser.add_argument('--activation', default='relu', type=str)
+    parser.add_argument('--dropout', default=0.1, type=float)
+    parser.add_argument('--lr', default=1e-4, type=float)
+    parser.add_argument('--wd', default=1e-4, type=float)
+    parser.add_argument('--warmup_steps', default=1000, type=int)
+    parser.add_argument('--num_eval_episodes', default=100, type=int)
+    parser.add_argument('--max_iters', default=10, type=int)
+    parser.add_argument('--num_steps_per_iter', default=10000, type=int)
+    parser.add_argument('--device', default='cuda', type=str)
+    parser.add_argument('--log_to_wandb', '-w', default=True, action='store_true')
+
+    # Online training parameters
     parser.add_argument('--online_training', default=False, action='store_true')
-    parser.add_argument('--online_buffer_size', default=1000, type=int) # keep top N trajectories for online training in replay buffer to start
-    #parser.add_argument('--pretrained_model', default='/home/guleserhocam/VS_Projects/simglucose/models/2025-03-16_17-42-54_offline/dt_BB-simglucose-medium-219427.pt', type=str) # './models/2025-02-27_14-07-22/DT_PPO_adolescent#001.pth'
+    parser.add_argument('--online_buffer_size', default=1000, type=int)
     parser.add_argument('--pretrained_model', default=None, type=str)
     parser.add_argument('--save_model', default=True, action='store_true')
     parser.add_argument('--stochastic', default=False, action='store_true')
@@ -577,20 +579,35 @@ if __name__ == '__main__':
     parser.add_argument('--eval_context', default=None, type=int)
     parser.add_argument('--target_entropy', default=False, action='store_true')
     parser.add_argument('--stochastic_tanh', default=False, action='store_true')
-    parser.add_argument('--approximate_entropy_samples',default=1000, type=int, 
-                        help="if using stochastic network w/ tanh squashing, have to approximate entropy with k samples, as no anlytical solution")
-    
-    
-    default_patient = 'adolescent#001'
-    algo = 'PPO'
-    default_path = f'/home/guleserhocam/VS_Projects/simglucose/dataset/T1DatasetAnalysis/{algo}/output/{default_patient}/{default_patient}_combined_seed.pkl'
+    parser.add_argument('--approx_entropy_samples', default=1000, type=int, 
+                        help="Samples for approximating entropy with stochastic tanh")
 
-    parser.add_argument('--datapath', type=str, default=default_path)
-    parser.add_argument('--test', type=bool, default=False)
-    parser.add_argument('--patient_name', type=str, default=f'{default_patient}')
-    parser.add_argument('--algo', type=str, default=f'{algo}')
-    parser.add_argument('--savename', type=str, default=f'DT_{algo}_{default_patient}')
+    # Data and experiment parameters
+    default_patient = 'adolescent#001'
+    default_algo = 'PPO'
+    base_path = '/home/guleserhocam/VS_Projects/simglucose/dataset/T1DatasetAnalysis'
+    parser.add_argument('--algo', default=default_algo, choices=['PPO', 'BB', 'PID'])
+    parser.add_argument('--patient_name', default=default_patient, type=str)
+    parser.add_argument('--noisy_path', default=f'{base_path}/{{algo}}/output_noisy/{{patient}}/{{patient}}_combined_seed.pkl', 
+                        type=str, help="Template for noisy data path")
+    parser.add_argument('--normal_path', default=f'{base_path}/{{algo}}/output/{{patient}}/{{patient}}_combined_seed.pkl', 
+                        type=str, help="Template for normal data path")
+    parser.add_argument('--test', default=False, action='store_true')
+    parser.add_argument('--savename', default='DT_{algo}_{patient}', type=str)
+
+    return parser
+
+def main():
+    parser = get_parser()
     args = parser.parse_args()
 
-    experiment(f'{algo}', variant=vars(args))
+    # Dynamically set datapath based on noisy flag
+    path_template = args.noisy_path if args.noisy else args.normal_path
+    args.datapath = path_template.format(algo=args.algo, patient=args.patient_name)
+
+    # Convert args to dictionary and run experiment
+    experiment(args.algo, variant=vars(args))
     print("Finished all experiments")
+
+if __name__ == '__main__':
+    main()
