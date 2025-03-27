@@ -10,7 +10,7 @@ import argparse
 FILE_DIR = os.path.dirname(__file__)
 sys.path.append(FILE_DIR)
 
-SAVE_DIR = 'output'  # Change this to your desired output directory
+SAVE_DIR = 'output_noisy'  # Change this to your desired output directory
 
 def load_patient_data(folder_path, patients, numbers, seeds, file_suffix=""):
     """
@@ -46,8 +46,14 @@ def load_patient_data(folder_path, patients, numbers, seeds, file_suffix=""):
                     df['done'] = np.array([False] * traj_len, dtype=bool)
                     df.loc[traj_len - 1, 'done'] = True # Mark the last step as done
 
+                    # Use CGM if noisy is True, otherwise use BG
+                    glucose_col = 'CGM' if args.noisy else 'BG'
+                    if glucose_col not in df.columns:
+                        print(f"Warning: {glucose_col} column not found in {file_path}. Skipping.")
+                        continue
+
                     # Extract observations and actions
-                    obs = [np.array([bg], dtype=np.float32) for bg in df['BG']]
+                    obs = [np.array([bg], dtype=np.float32) for bg in df[glucose_col]]
                     if folder_path=='BB' or folder_path=='PID':
                         # Extract next observations (shifted BG, last one repeats or uses a convention)
                         next_obs = np.roll(obs, -1, axis=0)  # Shift observations up, last one wraps around
@@ -55,9 +61,8 @@ def load_patient_data(folder_path, patients, numbers, seeds, file_suffix=""):
                         acts = [np.array([action], dtype=np.float32) for action in df['insulin']]
                         # Replace NaN in actions with 0, preserving shape
                         acts = np.where(np.isnan(acts), 0.0, acts).astype(np.float32)
-                        # Ensure actions has the same shape as next_observations
                         assert acts.shape == next_obs.shape, f"Shape mismatch: actions {acts.shape} vs next_observations {next_obs.shape}"
-                        rewards = [np.array(create_reward(bg), dtype=np.float32) for bg in df['BG']] 
+                        rewards = [np.array(create_reward(bg), dtype=np.float32) for bg in df[glucose_col]] 
                         terminals = df['done'].values
                     else:
                         # Extract next observations (shifted BG, last one repeats or uses a convention)
@@ -202,6 +207,7 @@ if __name__ == "__main__":
     parser.add_argument("--patient_name", type=str, required=False, help="Patient name (e.g., adolescent#001).")
     parser.add_argument("--trajectory_index", type=int, default=0, help="Trajectory index to plot (default: 0).")
     parser.add_argument("--save_dir", type=str, default=SAVE_DIR, help="Directory where output is saved (default: 'output').")
+    parser.add_argument("--noisy", type=bool, default=True, help="Noisy data flag from CGM")
 
     # Parse arguments
     args = parser.parse_args()
