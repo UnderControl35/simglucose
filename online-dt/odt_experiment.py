@@ -238,6 +238,7 @@ def experiment(
                             use_means=variant['use_action_means'],
                             eval_context=variant['eval_context'],
                             test=variant['test'],
+                            truncate_insulin=variant['insulin_threshold'],
                         )
                     else:
                         ret, length = evaluate_episode(
@@ -581,6 +582,8 @@ def get_parser():
     parser.add_argument('--stochastic_tanh', default=False, action='store_true')
     parser.add_argument('--approx_entropy_samples', default=1000, type=int, 
                         help="Samples for approximating entropy with stochastic tanh")
+    parser.add_argument('--insulin_threshold', default=0.01, type=float, 
+                        help='Threshold below which insulin is truncated to zero')
 
     # Data and experiment parameters
     default_patient = 'adolescent#001'

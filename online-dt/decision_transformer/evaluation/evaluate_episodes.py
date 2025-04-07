@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-
+from utils.utils import truncate_insulin
 
 def evaluate_episode(
         env,
@@ -78,6 +78,7 @@ def evaluate_episode_rtg(
         return_traj=False,
         eval_context=None,
         test=False,
+        threshold_truncate=0.1,
     ):
 
     model.eval()
@@ -124,6 +125,9 @@ def evaluate_episode_rtg(
         )
         actions[-1] = action
         action = action.detach().cpu().numpy()
+
+        # Truncate insulin action
+        action = truncate_insulin(action, threshold=threshold_truncate)
 
         state, reward, done, _ = env.step(action)
         state = np.array(state.CGM)
