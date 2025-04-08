@@ -96,6 +96,11 @@ class T1DSimEnv(object):
         self.LBGI_hist.append(LBGI)
         self.HBGI_hist.append(HBGI)
 
+        #FIXME: We can use fractions but not whole dataset! check later
+        #hypo_fraction = glycemic_fractions.get('Hypoglycemia', 0)
+        #hyper_fraction = glycemic_fractions.get('Hyperglycemia', 0)
+        #reward_adjustment = -10 * (hypo_fraction + hyper_fraction)  # Penalize unsafe states
+
         # Compute reward, and decide whether game is over
         window_size = int(60 / self.sample_time)
         BG_last_hour = self.CGM_hist[-window_size:]

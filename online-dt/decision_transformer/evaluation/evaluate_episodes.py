@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from utils.utils import truncate_insulin
+from decision_transformer.utils.utils import truncate_insulin
 
 def evaluate_episode(
         env,
@@ -123,11 +123,12 @@ def evaluate_episode_rtg(
             use_means=use_means,
             custom_max_length=eval_context
         )
-        actions[-1] = action
-        action = action.detach().cpu().numpy()
 
         # Truncate insulin action
         action = truncate_insulin(action, threshold=threshold_truncate)
+        # Ensure action is within bounds
+        actions[-1] = action
+        action = action.detach().cpu().numpy()
 
         state, reward, done, _ = env.step(action)
         state = np.array(state.CGM)

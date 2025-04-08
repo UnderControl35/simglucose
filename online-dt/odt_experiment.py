@@ -17,6 +17,7 @@ from decision_transformer.models.mlp_bc import MLPBCModel
 from decision_transformer.training.act_trainer import ActTrainer
 from decision_transformer.training.seq_trainer import SequenceTrainer
 
+from decision_transformer.utils.utils import analyze_glycemic_states_from_list
 
 import simglucose
 from gym.envs.registration import register
@@ -219,11 +220,11 @@ def experiment(
     
     def eval_episodes(target_rew):
         def fn(model):
-            returns, lengths = [], []
+            returns, lengths, all_glucose_readings = [], [], []
             for _ in range(num_eval_episodes):
                 with torch.no_grad():
                     if model_type == 'dt':
-                        ret, length = evaluate_episode_rtg(
+                        ret, length, traj = evaluate_episode_rtg(
                             env,
                             state_dim,
                             act_dim,
@@ -238,7 +239,8 @@ def experiment(
                             use_means=variant['use_action_means'],
                             eval_context=variant['eval_context'],
                             test=variant['test'],
-                            truncate_insulin=variant['insulin_threshold'],
+                            threshold_truncate=variant['insulin_threshold'],
+                            return_traj=True
                         )
                     else:
                         ret, length = evaluate_episode(
@@ -255,12 +257,34 @@ def experiment(
                         )
                 returns.append(ret)
                 lengths.append(length)
-            return {
+
+                if traj:
+                    # Extract glucose readings from the trajectory
+                    # In SimGlucose, observations are typically [BG] or [CGM] (1D)
+                    glucose_readings = traj['observations'].flatten().tolist()
+                    all_glucose_readings.extend(glucose_readings)
+
+            # Compute glycemic state fractions using the analyze_glycemic_states function
+            # Since analyze_glycemic_states expects a file, we'll create a temporary list
+            glycemic_fractions = analyze_glycemic_states_from_list(
+                all_glucose_readings,
+                plot=False,
+                hypo_threshold=70,
+                hyper_threshold=180
+            )
+
+            # Return evaluation metrics including glycemic fractions
+            metrics = {
                 f'target_{target_rew}_return_mean': np.mean(returns),
                 f'target_{target_rew}_return_std': np.std(returns),
                 f'target_{target_rew}_length_mean': np.mean(lengths),
                 f'target_{target_rew}_length_std': np.std(lengths),
             }
+            # Add glycemic fractions to metrics
+            for state, fraction in glycemic_fractions.items():
+                metrics[f'target_{target_rew}_{state}_fraction'] = fraction
+
+            return metrics
         return fn
 
 
@@ -438,6 +462,15 @@ def experiment(
                 if log_to_wandb:
                     wandb.log(outputs)
 
+                    #FIXME: Check logging part of state and fraction!
+                    # In the training loop
+                    # if log_to_wandb:
+                    #     wandb.log(outputs)
+                    #     # Log glycemic fractions
+                    #     for state, fraction in outputs.items():
+                    #         if 'fraction' in state:
+                    #             wandb.log({state: fraction})
+
         torch.save(model,os.path.join(model_dir, model_type + '_' + exp_prefix + '.pt'))
 
 def get_parser():
@@ -546,7 +579,7 @@ def get_parser():
     parser.add_argument('--env', default='simglucose', type=str)
     parser.add_argument('--dataset', default='medium', choices=['medium', 'medium-replay', 'medium-expert', 'expert'])
     parser.add_argument('--mode', default='normal', choices=['normal', 'delayed'])
-    parser.add_argument('--noisy', default=False, action='store_true', help="Use noisy (CGM) data instead of normal (BG)")
+    parser.add_argument('--noisy', default=True, action='store_true', help="Use noisy (CGM) data instead of normal (BG)")
 
     # Model hyperparameters
     parser.add_argument('--K', default=20, type=int)
@@ -556,16 +589,16 @@ def get_parser():
     parser.add_argument('--embed_dim', default=128, type=int)
     parser.add_argument('--n_layer', default=3, type=int)
     parser.add_argument('--n_head', default=1, type=int)
-    parser.add_argument('--activation', default='relu', type=str)
+    parser.add_argument('--activation_function', default='relu', type=str)
     parser.add_argument('--dropout', default=0.1, type=float)
-    parser.add_argument('--lr', default=1e-4, type=float)
-    parser.add_argument('--wd', default=1e-4, type=float)
-    parser.add_argument('--warmup_steps', default=1000, type=int)
-    parser.add_argument('--num_eval_episodes', default=100, type=int)
-    parser.add_argument('--max_iters', default=10, type=int)
-    parser.add_argument('--num_steps_per_iter', default=10000, type=int)
+    parser.add_argument('--learning_rate', '-lr', type=float, default=1e-4)
+    parser.add_argument('--weight_decay', '-wd', type=float, default=1e-4)
+    parser.add_argument('--warmup_steps', default=1, type=int)
+    parser.add_argument('--num_eval_episodes', default=1, type=int)
+    parser.add_argument('--max_iters', default=1, type=int)
+    parser.add_argument('--num_steps_per_iter', default=1, type=int)
     parser.add_argument('--device', default='cuda', type=str)
-    parser.add_argument('--log_to_wandb', '-w', default=True, action='store_true')
+    parser.add_argument('--log_to_wandb', '-w', default=False, action='store_true')
 
     # Online training parameters
     parser.add_argument('--online_training', default=False, action='store_true')
@@ -580,7 +613,7 @@ def get_parser():
     parser.add_argument('--eval_context', default=None, type=int)
     parser.add_argument('--target_entropy', default=False, action='store_true')
     parser.add_argument('--stochastic_tanh', default=False, action='store_true')
-    parser.add_argument('--approx_entropy_samples', default=1000, type=int, 
+    parser.add_argument('--approximate_entropy_samples', default=1000, type=int, 
                         help="Samples for approximating entropy with stochastic tanh")
     parser.add_argument('--insulin_threshold', default=0.01, type=float, 
                         help='Threshold below which insulin is truncated to zero')
